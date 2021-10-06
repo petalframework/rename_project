@@ -90,8 +90,7 @@ defmodule Rename do
       cond do
         File.dir?(path) ->
           rename_in_directory(names, otps, path, options)
-          rename_file(path, old_otp, new_otp)
-          :ok
+          true
 
         is_valid_file?(path, options) ->
           path
@@ -105,14 +104,20 @@ defmodule Rename do
                 |> String.replace(dasherised(old_otp), dasherised(new_otp))
 
               File.write(path, updated_file)
-              rename_file(path, old_otp, new_otp)
-              :ok
+              true
 
             _ ->
-              :ok
+              false
           end
 
         true ->
+          false
+      end
+      |> case do
+        true ->
+          rename_file(path, old_otp, new_otp)
+
+        _ ->
           :ok
       end
     end)
