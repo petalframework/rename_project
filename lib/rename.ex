@@ -27,6 +27,7 @@ defmodule Rename do
   )
 
   @default_exclude_directories ~w(
+    .elixir_ls
     _build
     deps
     assets
@@ -82,16 +83,18 @@ defmodule Rename do
   defp rename_in_directory(names = {old_name, new_name}, otps = {old_otp, new_otp}, cwd, options) do
     cwd
     |> File.ls!()
-    |> Enum.each(fn path ->
-      file_or_dir = Path.join([cwd, path])
+    |> Enum.reject(&excluded_directory?(&1, options))
+    |> Enum.each(fn file_or_dir ->
+      path = Path.join([cwd, file_or_dir])
 
       cond do
-        is_valid_directory?(file_or_dir, options) ->
-          rename_in_directory(names, otps, file_or_dir, options)
-          true
+        File.dir?(path) ->
+          rename_in_directory(names, otps, path, options)
+          rename_file(path, old_otp, new_otp)
+          :ok
 
-        is_valid_file?(file_or_dir, options) ->
-          file_or_dir
+        is_valid_file?(path, options) ->
+          path
           |> File.read()
           |> case do
             {:ok, file} ->
@@ -99,9 +102,10 @@ defmodule Rename do
                 file
                 |> String.replace(old_name, new_name)
                 |> String.replace(old_otp, new_otp)
+                |> String.replace(dasherised(old_otp), dasherised(new_otp))
 
-              File.write(file_or_dir, updated_file)
-              File.rename(file_or_dir, String.replace(file_or_dir, old_otp, new_otp))
+              File.write(path, updated_file)
+              rename_file(path, old_otp, new_otp)
               :ok
 
             _ ->
@@ -114,8 +118,12 @@ defmodule Rename do
     end)
   end
 
-  defp is_valid_directory?(dir, options) do
-    File.dir?(dir) and dir not in options[:exclude_directories]
+  defp rename_file(path, old_otp, new_otp) do
+    File.rename(path, String.replace(path, old_otp, new_otp))
+  end
+
+  defp excluded_directory?(dir, options) do
+    File.dir?(dir) and dir in options[:exclude_directories]
   end
 
   defp is_valid_file?(file, options) do
@@ -128,4 +136,6 @@ defmodule Rename do
   defp has_valid_extension?(file, options) do
     Path.extname(file) in options[:extensions]
   end
+
+  defp dasherised(name), do: String.replace(name, "_", "-")
 end
