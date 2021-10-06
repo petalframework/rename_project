@@ -6,14 +6,16 @@ defmodule RenameTest do
   @old_app_otp "rename"
   @new_app_name "ToDoTwitterClone"
   @new_app_otp "to_do_twitter_clone"
-  
+
   test "should properly rename app with default options" do
     create_copy_of_app()
+
     Rename.run(
-      {@old_app_name, @new_app_name}, 
-      {@old_app_otp, @new_app_otp}, 
+      {@old_app_name, @new_app_name},
+      {@old_app_otp, @new_app_otp},
       starting_directory: @test_copy_dir
     )
+
     mix_file = File.read!(@test_copy_dir <> "/mix.exs")
     assert mix_file |> String.contains?(@new_app_name)
     assert mix_file |> String.contains?(@new_app_otp)
@@ -30,21 +32,25 @@ defmodule RenameTest do
 
   test "should give proper error for invalid params" do
     assert Rename.run(
-      {@old_app_name, @new_app_name}, 
-      starting_directory: @test_copy_dir
-    ) == {:error, "bad params"}
+             {@old_app_name, @new_app_name},
+             starting_directory: @test_copy_dir
+           ) == {:error, "bad params"}
   end
 
   test "rename mix task works" do
     create_copy_of_app()
+
     Mix.Tasks.Rename.run([
-      @old_app_name, 
-      @new_app_name, 
-      @old_app_otp, 
-      @new_app_otp, 
-      "--starting-directory", 
+      @old_app_name,
+      @new_app_name,
+      @old_app_otp,
+      @new_app_otp,
+      "--starting-directory",
       @test_copy_dir,
+      "--exclude-directories",
+      "foo"
     ])
+
     mix_file = File.read!(@test_copy_dir <> "/mix.exs")
     assert mix_file |> String.contains?(@new_app_name)
     assert mix_file |> String.contains?(@new_app_otp)
@@ -61,20 +67,22 @@ defmodule RenameTest do
 
   test "rename mix task should give proper error for bad params" do
     {stdout, 0} = System.cmd("mix", ["rename", "not", "enought", "params"])
+
     assert stdout =~ """
-                     Did not provide required app and otp names
-                     Call should look like:
-                       mix rename OldName NewName old_name NewName
-                     """
+           Did not provide required app and otp names
+           Call should look like:
+             mix rename OldName NewName old_name NewName
+           """
   end
 
   defp create_copy_of_app do
     File.mkdir(@test_copy_dir)
-    File.ls!
-    |> Enum.each(fn path -> 
-      if not_ignored_path(path) do
-        System.cmd("cp", ["-r", path, @test_copy_dir])
-      end
+
+    File.ls!()
+    |> Enum.filter(&(File.dir?(&1) || Path.extname(&1) in ~w(.ex .exs .md)))
+    |> Enum.reject(&(&1 in ignored_paths()))
+    |> Enum.each(fn path ->
+      System.cmd("cp", ["-r", path, @test_copy_dir])
     end)
   end
 
@@ -82,13 +90,13 @@ defmodule RenameTest do
     System.cmd("rm", ["-rf", @test_copy_dir])
   end
 
-  defp not_ignored_path(path) do
+  defp ignored_paths do
     [
       "_build",
-      "deps", 
+      "deps",
       @test_copy_dir,
       ".git",
+      ".elixir_ls"
     ]
-    |> Enum.find(&(&1 == path)) == nil
   end
 end
