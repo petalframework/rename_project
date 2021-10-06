@@ -134,7 +134,15 @@ defmodule Rename do
   end
 
   defp has_valid_extension?(file, options) do
-    Path.extname(file) in options[:extensions]
+    file
+    |> Path.extname()
+    |> case do
+      "" ->
+        true
+
+      ext ->
+        ext in options[:extensions]
+    end
   end
 
   defp dasherised(name), do: String.replace(name, "_", "-")
