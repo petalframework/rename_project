@@ -42,6 +42,10 @@ defmodule Rename do
   Call looks like: run({"OldName", "NewName"}, {"old_otp", "new_otp"}, options)
   """
 
+  def run({old_otp, new_otp}, options) when is_list(options) do
+    run({camelise(old_otp), camelise(new_otp)}, {old_otp, new_otp}, options)
+  end
+
   def run(names, otps, options \\ [])
 
   def run({_old_name, _new_name} = names, {_old_otp, _new_otp} = otps, options) do
@@ -151,4 +155,11 @@ defmodule Rename do
   end
 
   defp dasherised(name), do: String.replace(name, "_", "-")
+
+  defp camelise(name) do
+    name
+    |> String.split("_")
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join()
+  end
 end
