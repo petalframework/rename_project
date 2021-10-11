@@ -47,7 +47,7 @@ defmodule RenameTest do
       @new_app_otp,
       "--starting-directory",
       @test_copy_dir,
-      "--exclude-directories",
+      "--ignore-directories",
       "foo"
     ])
 

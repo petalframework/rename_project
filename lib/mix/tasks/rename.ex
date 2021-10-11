@@ -8,10 +8,10 @@ defmodule Mix.Tasks.Rename do
       options
       |> OptionParser.parse(
         strict: [
-          exclude_directories: :keep,
-          exclude_files: :keep,
+          ignore_directories: :keep,
+          ignore_files: :keep,
           starting_directory: :string,
-          extensions: :keep,
+          include_extensions: :keep,
           include_files: :keep
         ]
       )
