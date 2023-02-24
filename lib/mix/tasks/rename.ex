@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Rename do
 
   def run(args \\ [])
 
-  def run([old_name, new_name, old_otp, new_otp | options]) do
+  def run([old_name, new_name | options]) do
     {options, _argv, _errors} =
       options
       |> OptionParser.parse(
@@ -16,13 +16,16 @@ defmodule Mix.Tasks.Rename do
         ]
       )
 
+    old_otp = Macro.underscore(old_name)
+    new_otp = Macro.underscore(new_name)
+
     options =
       options
       |> Enum.group_by(fn {k, _v} -> k end, fn {_k, v} -> v end)
       |> Map.to_list()
       |> maybe_put_starting_directory(Keyword.get(options, :starting_directory))
 
-    Rename.run(
+    RenameProject.run(
       {old_name, new_name},
       {old_otp, new_otp},
       options
@@ -33,7 +36,7 @@ defmodule Mix.Tasks.Rename do
     IO.puts("""
     Did not provide required app and otp names
     Call should look like:
-      mix rename OldName NewName old_name NewName
+      mix rename OldName NewName
     """)
 
     {:error, :bad_params}

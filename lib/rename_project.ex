@@ -1,4 +1,4 @@
-defmodule Rename do
+defmodule RenameProject do
   @moduledoc """
   The single module that does all the renaming
   Talk about pressure
@@ -12,6 +12,7 @@ defmodule Rename do
     .ex
     .exs
     .eex
+    .heex
     .md
   )
 

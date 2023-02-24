@@ -3,9 +3,9 @@ defmodule Rename.Mixfile do
 
   def project do
     [
-      app: :rename,
+      app: :rename_project,
       version: "0.1.0",
-      elixir: "~> 1.12",
+      elixir: "~> 1.14",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       description: description(),
@@ -30,8 +30,8 @@ defmodule Rename.Mixfile do
   defp package do
     [
       licenses: ["MIT"],
-      maintainers: ["MainShayne233"],
-      links: %{github: "https://github.com/MainShayne233/rename"}
+      maintainers: ["PetalFramework"],
+      links: %{github: "https://github.com/petalframework/rename_project"}
     ]
   end
 
