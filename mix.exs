@@ -49,7 +49,6 @@ defmodule RenameProject.Mixfile do
   defp docs() do
     [
       main: "readme",
-      logo: "logo.png",
       name: "Rename Project",
       source_ref: "v#{@version}",
       canonical: "http://hexdocs.pm/rename_project",
