@@ -10,7 +10,7 @@ Add to your mix dependencies in `mix.exs`
 # mix.exs
 defp deps do
   [
-    {:rename_project, git: "https://github.com/petalframework/rename_project", only: :dev}
+    {:rename_project, "~> 0.1.0", only: :dev}
   ]
 end
 ```

@@ -1,16 +1,20 @@
 defmodule RenameProject.Mixfile do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/petalframework/rename_project"
+
   def project do
     [
       app: :rename_project,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.14",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
       deps: deps(),
+      docs: docs(),
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
         coveralls: :test,
@@ -31,7 +35,7 @@ defmodule RenameProject.Mixfile do
     [
       licenses: ["MIT"],
       maintainers: ["PetalFramework"],
-      links: %{github: "https://github.com/petalframework/rename_project"}
+      links: %{github: @source_url}
     ]
   end
 
@@ -39,6 +43,18 @@ defmodule RenameProject.Mixfile do
     [
       {:excoveralls, "~> 0.6", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev}
+    ]
+  end
+
+  defp docs() do
+    [
+      main: "readme",
+      logo: "logo.png",
+      name: "Rename Project",
+      source_ref: "v#{@version}",
+      canonical: "http://hexdocs.pm/rename_project",
+      source_url: @source_url,
+      extras: ["README.md"]
     ]
   end
 end
