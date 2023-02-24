@@ -1,4 +1,4 @@
-defmodule Rename.Mixfile do
+defmodule RenameProject.Mixfile do
   use Mix.Project
 
   def project do
