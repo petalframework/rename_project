@@ -18,6 +18,8 @@ defmodule RenameProject do
 
   @default_ignore_directories ~w(
     .elixir_ls
+    .vscode
+    .git
     _build
     deps
     assets
