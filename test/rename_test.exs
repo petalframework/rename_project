@@ -1,111 +1,235 @@
-defmodule RenameTest do
-  use ExUnit.Case
+defmodule RenameProjectTest do
+  use ExUnit.Case, async: true
 
-  @test_copy_dir "test_copy"
-  @old_app_name "RenameProject"
-  @old_app_otp "rename_project"
-  @new_app_name "ToDoTwitterClone"
-  @new_app_otp "to_do_twitter_clone"
+  import ExUnit.CaptureIO
 
-  describe "defaults" do
-    setup do
-      on_exit(&cleanup/0)
-      []
-    end
-
-    test "should properly rename app with default options" do
-      create_copy_of_app()
-
-      RenameProject.run(
-        {@old_app_name, @new_app_name},
-        {@old_app_otp, @new_app_otp},
-        starting_directory: @test_copy_dir
+  setup do
+    # Create an isolated temporary project directory for each test
+    tmp_dir =
+      Path.join(
+        System.tmp_dir!(),
+        "rename_project_test_#{System.unique_integer([:positive])}"
       )
 
-      mix_file = File.read!(@test_copy_dir <> "/mix.exs")
-      assert mix_file |> String.contains?(@new_app_name)
-      assert mix_file |> String.contains?(@new_app_otp)
-      assert mix_file |> String.contains?(@old_app_name) == false
-      main_module = File.read!(@test_copy_dir <> "/lib/" <> @new_app_otp <> ".ex")
-      assert main_module |> String.contains?(@new_app_name)
-      assert main_module |> String.contains?(@old_app_name) == false
-      readme = File.read!(@test_copy_dir <> "/README.md")
-      assert readme |> String.contains?(@new_app_otp)
-      assert readme |> String.contains?(@old_app_name) == false
+    File.mkdir_p!(tmp_dir)
+
+    on_exit(fn ->
+      File.rm_rf!(tmp_dir)
+    end)
+
+    {:ok, tmp_dir: tmp_dir}
+  end
+
+  describe "derive_variants/1" do
+    test "derives all casing conventions from PascalCase" do
+      assert RenameProject.derive_variants("AshPhoenixStarter") == %{
+               pascal: "AshPhoenixStarter",
+               snake: "ash_phoenix_starter",
+               kebab: "ash-phoenix-starter",
+               upper_snake: "ASH_PHOENIX_STARTER",
+               title: "Ash Phoenix Starter"
+             }
+    end
+
+    test "derives all casing conventions from snake_case" do
+      assert RenameProject.derive_variants("ash_phoenix_starter") == %{
+               pascal: "AshPhoenixStarter",
+               snake: "ash_phoenix_starter",
+               kebab: "ash-phoenix-starter",
+               upper_snake: "ASH_PHOENIX_STARTER",
+               title: "Ash Phoenix Starter"
+             }
+    end
+
+    test "derives all casing conventions from kebab-case" do
+      assert RenameProject.derive_variants("ash-phoenix-starter") == %{
+               pascal: "AshPhoenixStarter",
+               snake: "ash_phoenix_starter",
+               kebab: "ash-phoenix-starter",
+               upper_snake: "ASH_PHOENIX_STARTER",
+               title: "Ash Phoenix Starter"
+             }
     end
   end
 
-  test "should give proper error for invalid params" do
-    assert RenameProject.run(
-             {@old_app_name, @new_app_name},
-             starting_directory: @test_copy_dir
-           ) == {:error, "bad params"}
+  describe "run/2" do
+    test "renames files, nested directories, and all content variants", %{tmp_dir: tmp_dir} do
+      create_sample_project(tmp_dir)
+
+      assert :ok =
+               RenameProject.run(
+                 {"AshPhoenixStarter", "AcmePortal"},
+                 starting_directory: tmp_dir
+               )
+
+      # Old paths should no longer exist
+      refute File.exists?(Path.join(tmp_dir, "lib/ash_phoenix_starter.ex"))
+      refute File.exists?(Path.join(tmp_dir, "lib/ash_phoenix_starter"))
+
+      # New paths should exist
+      new_app_file = Path.join(tmp_dir, "lib/acme_portal.ex")
+      new_nested_file = Path.join(tmp_dir, "lib/acme_portal/accounts.ex")
+      new_readme = Path.join(tmp_dir, "README.md")
+      new_config = Path.join(tmp_dir, "config/runtime.exs")
+
+      assert File.exists?(new_app_file)
+      assert File.exists?(new_nested_file)
+
+      # Verify PascalCase and snake_case inside Elixir files
+      assert File.read!(new_app_file) == """
+             defmodule AcmePortal do
+               @otp_app :acme_portal
+             end
+             """
+
+      assert File.read!(new_nested_file) == """
+             defmodule AcmePortal.Accounts do
+             end
+             """
+
+      # Verify Title Case and kebab-case inside Markdown
+      assert File.read!(new_readme) == """
+             # Acme Portal
+             Deploy via `flyctl launch --name acme-portal`
+             """
+
+      # Verify UPPER_SNAKE_CASE inside config
+      assert File.read!(new_config) == """
+             import Config
+             config :acme_portal, secret: System.get_env("ACME_PORTAL_SECRET")
+             """
+    end
+
+    test "respects ignore_directories and ignore_files", %{tmp_dir: tmp_dir} do
+      create_sample_project(tmp_dir)
+
+      ignored_dir_file = Path.join(tmp_dir, "custom_ignored/ash_phoenix_starter.ex")
+      ignored_file = Path.join(tmp_dir, "lib/keep_me.ex")
+
+      File.mkdir_p!(Path.dirname(ignored_dir_file))
+      File.write!(ignored_dir_file, "defmodule AshPhoenixStarter.Ignored do end")
+      File.write!(ignored_file, "defmodule AshPhoenixStarter.KeepMe do end")
+
+      assert :ok =
+               RenameProject.run(
+                 {"AshPhoenixStarter", "AcmePortal"},
+                 starting_directory: tmp_dir,
+                 ignore_directories: ["custom_ignored"],
+                 ignore_files: ["keep_me.ex"]
+               )
+
+      assert File.read!(ignored_dir_file) == "defmodule AshPhoenixStarter.Ignored do end"
+      assert File.read!(ignored_file) == "defmodule AshPhoenixStarter.KeepMe do end"
+    end
+
+    test "returns error on invalid arguments" do
+      assert {:error, _msg} = RenameProject.run({:not_a_string, "AcmePortal"})
+      assert {:error, _msg} = RenameProject.run("invalid_tuple")
+    end
   end
 
-  describe "custom options" do
+  describe "run/2 with dry_run: true" do
+    test "returns a report of pending changes without modifying disk", %{tmp_dir: tmp_dir} do
+      create_sample_project(tmp_dir)
+
+      assert {:ok, report} =
+               RenameProject.run(
+                 {"AshPhoenixStarter", "AcmePortal"},
+                 starting_directory: tmp_dir,
+                 dry_run: true
+               )
+
+      # Original files and directories must remain untouched
+      assert File.exists?(Path.join(tmp_dir, "lib/ash_phoenix_starter.ex"))
+      assert File.exists?(Path.join(tmp_dir, "lib/ash_phoenix_starter/accounts.ex"))
+      refute File.exists?(Path.join(tmp_dir, "lib/acme_portal.ex"))
+
+      assert File.read!(Path.join(tmp_dir, "README.md")) =~ "Ash Phoenix Starter"
+
+      # Report should list the files that would change and paths that would rename
+      assert Enum.any?(report.content_changes, &String.ends_with?(&1, "README.md"))
+      assert Enum.any?(report.content_changes, &String.ends_with?(&1, "lib/ash_phoenix_starter.ex"))
+
+      assert Enum.any?(report.renames, fn {old_path, new_path} ->
+               String.ends_with?(old_path, "lib/ash_phoenix_starter.ex") and
+                 String.ends_with?(new_path, "lib/acme_portal.ex")
+             end)
+    end
+  end
+
+  describe "Mix.Tasks.Rename" do
     setup do
-      on_exit(&cleanup/0)
-      []
+      # Ensure Mix shell is set to Process so CaptureIO intercepts Mix.shell().info/error
+      Mix.shell(Mix.Shell.Process)
+      on_exit(fn -> Mix.shell(Mix.Shell.IO) end)
+      :ok
     end
 
-    test "rename mix task works" do
-      create_copy_of_app()
+    test "runs dry-run from CLI flags without touching files", %{tmp_dir: tmp_dir} do
+      create_sample_project(tmp_dir)
 
       Mix.Tasks.Rename.run([
-        @old_app_name,
-        @new_app_name,
+        "AshPhoenixStarter",
+        "AcmePortal",
+        "--dry-run",
         "--starting-directory",
-        @test_copy_dir,
-        "--ignore-directories",
-        "lib"
+        tmp_dir
       ])
 
-      mix_file = File.read!(@test_copy_dir <> "/mix.exs")
-      assert mix_file |> String.contains?(@new_app_name)
-      assert mix_file |> String.contains?(@new_app_otp)
-      assert mix_file |> String.contains?(@old_app_name) == false
+      assert_received {:mix_shell, :info, [header]}
+      assert IO.iodata_to_binary(header) =~ "DRY RUN PREVIEW"
 
-      # We ignored the lib directory, so this file should not have been renamed
-      {:error, reason} = File.read(@test_copy_dir <> "/lib/" <> @new_app_otp <> ".ex")
-      assert reason == :enoent
+      # Verify nothing changed on disk
+      assert File.exists?(Path.join(tmp_dir, "lib/ash_phoenix_starter.ex"))
+    end
 
-      readme = File.read!(@test_copy_dir <> "/README.md")
-      assert readme |> String.contains?(@new_app_otp)
-      assert readme |> String.contains?(@old_app_name) == false
+    test "applies rename via Mix task", %{tmp_dir: tmp_dir} do
+      create_sample_project(tmp_dir)
+
+      Mix.Tasks.Rename.run([
+        "AshPhoenixStarter",
+        "AcmePortal",
+        "--starting-directory",
+        tmp_dir
+      ])
+
+      assert_received {:mix_shell, :info, [msg]}
+      assert IO.iodata_to_binary(msg) =~ "Successfully renamed AshPhoenixStarter to AcmePortal!"
+      assert File.exists?(Path.join(tmp_dir, "lib/acme_portal.ex"))
+    end
+
+    test "prints error on missing arguments" do
+      assert {:error, :bad_params} = Mix.Tasks.Rename.run(["OnlyOneArg"])
+      assert_received {:mix_shell, :error, [error_msg]}
+      assert IO.iodata_to_binary(error_msg) =~ "Did not provide required old and new project names"
     end
   end
 
-  test "rename mix task should give proper error for bad params" do
-    {stdout, 0} = System.cmd("mix", ["rename", "hdjdj"])
-    assert stdout =~ "mix rename OldName NewName"
-  end
+  # --- Helpers ---
 
-  def cleanup() do
-    delete_copy_of_app()
-  end
+  defp create_sample_project(root) do
+    File.mkdir_p!(Path.join(root, "lib/ash_phoenix_starter"))
+    File.mkdir_p!(Path.join(root, "config"))
 
-  defp create_copy_of_app do
-    File.mkdir(@test_copy_dir)
+    File.write!(Path.join(root, "lib/ash_phoenix_starter.ex"), """
+    defmodule AshPhoenixStarter do
+      @otp_app :ash_phoenix_starter
+    end
+    """)
 
-    File.ls!()
-    |> Enum.filter(&(File.dir?(&1) || Path.extname(&1) in ~w(.ex .exs .md)))
-    |> Enum.reject(&(&1 in ignored_paths()))
-    |> Enum.each(fn path ->
-      System.cmd("cp", ["-r", path, @test_copy_dir])
-    end)
-  end
+    File.write!(Path.join(root, "lib/ash_phoenix_starter/accounts.ex"), """
+    defmodule AshPhoenixStarter.Accounts do
+    end
+    """)
 
-  defp delete_copy_of_app() do
-    System.cmd("rm", ["-rf", @test_copy_dir])
-  end
+    File.write!(Path.join(root, "README.md"), """
+    # Ash Phoenix Starter
+    Deploy via `flyctl launch --name ash-phoenix-starter`
+    """)
 
-  defp ignored_paths do
-    [
-      "_build",
-      "deps",
-      @test_copy_dir,
-      ".git",
-      ".elixir_ls"
-    ]
+    File.write!(Path.join(root, "config/runtime.exs"), """
+    import Config
+    config :ash_phoenix_starter, secret: System.get_env("ASH_PHOENIX_STARTER_SECRET")
+    """)
   end
 end
